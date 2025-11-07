@@ -1,19 +1,19 @@
 import requests
 import json
 import os
-from tabulate import tabulate 
-from datetime import datetime 
+import pandas as pd
+from datetime import datetime  
+import streamlit as st
 
 DATAJUD_API_URL = "https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search" 
 API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=="
 
 def buscar_jurisprudencia_datajud(termo_busca):
     """
-    Busca processos no DataJud (focado no STJ) usando um payload de busca otimizado e
-    apresenta os resultados em uma tabela formatada, com a data em DD/MM/YYYY e
-    correção de caracteres especiais no Órgão Julgador.
+    Busca processos no DataJud (focado no STJ) e retorna um DataFrame do Pandas
+    com os resultados formatados para exibição no Streamlit.
     """
-    print(f"Buscando por '{termo_busca}' no STJ (Endpoint: {DATAJUD_API_URL})...")
+    st.info(f"Buscando por '{termo_busca}' no STJ (Endpoint: STJ)...")
     
     headers = {
         "Content-Type": "application/json",
@@ -36,25 +36,25 @@ def buscar_jurisprudencia_datajud(termo_busca):
             }
         },
         "size": 100,
-        "sort": [{"dataAjuizamento": "desc"}] 
+        "sort": [{"dataAjuizamento": "desc"}]
     }
     
     try:
         response = requests.post(DATAJUD_API_URL, headers=headers, data=json.dumps(payload))
-        response.raise_for_status() 
+        response.raise_for_status()
         
         dados = response.json()
         resultados = dados.get('hits', {}).get('hits', [])
         
         if not resultados:
-            print("❌ Nenhuma decisão judicial encontrada para este termo nos metadados do STJ.")
-            print("---")
+            st.warning("❌ Nenhuma decisão judicial encontrada para este termo nos metadados do STJ.")
+            st.markdown("---")
             return
 
-        print(f"\n✅ Foram encontrados {len(resultados)} resultados para '{termo_busca}':\n")
+        st.success(f"✅ Foram encontrados {len(resultados)} resultados para '{termo_busca}':")
         
         link_stj = "https://processo.stj.jus.br/processo/pesquisa/"
-        print(f"🔗 Para consultar detalhes completos do processo, utilize o número de processo no site do STJ: [Consulta Processual STJ]({link_stj})\n")
+        st.markdown(f"🔗 Para consultar detalhes completos do processo, utilize o número de processo no site do STJ: [Consulta Processual STJ]({link_stj})")
         
         tabela_dados = []
         
@@ -64,12 +64,12 @@ def buscar_jurisprudencia_datajud(termo_busca):
             numero_processo = processo.get("numeroProcesso", "N/A")
             classe_processual = processo.get("classe", {}).get("nome", "N/A")
             data_ajuizamento_str = processo.get("dataAjuizamento", "N/A")
-            
+           
             orgao_julgado_raw = processo.get("orgaoJulgador", {}).get("nome", "N/A")
             orgao_julgado = "N/A"
             if orgao_julgado_raw != "N/A":
                 try:
-                    orgao_julgado = orgao_julgado_raw.encode('latin-1', 'ignore').decode('utf-8', 'ignore')
+                    orgao_julgado = orgao_julgado_raw.strip() 
                 except Exception:
                     orgao_julgado = orgao_julgado_raw 
             
@@ -92,6 +92,7 @@ def buscar_jurisprudencia_datajud(termo_busca):
                 classe_processual,
                 orgao_julgado,
             ])
+            
         headers_tabela = [
             "Número do Processo", 
             "Data Ajuizamento", 
@@ -99,22 +100,35 @@ def buscar_jurisprudencia_datajud(termo_busca):
             "Órgão Julgador",
         ]
         
-        print(tabulate(tabela_dados, headers=headers_tabela, tablefmt="pipe"))
+        df_resultados = pd.DataFrame(tabela_dados, columns=headers_tabela)
+        
+        st.dataframe(df_resultados)
         
     except requests.exceptions.HTTPError as errh:
-        print(f"❌ Erro HTTP: {errh}")
+        st.error(f"❌ Erro HTTP: {errh}")
     except Exception as e:
-        print(f"❌ Ocorreu um erro inesperado: {e}")
+        st.error(f"❌ Ocorreu um erro inesperado: {e}")
 
 if __name__ == "__main__":
-    if API_KEY == "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==":
-        termo = input("🔍 Insira o termo ou conceito para busca jurisprudencial: ")
-        
-        if termo:
-            buscar_jurisprudencia_datajud(termo)
-        else:
-            print("Nenhum termo inserido. Encerrando o programa.")
-    else:
-        print("⚠️ Atenção: Verifique se sua chave de acesso (API_KEY) está correta, caso contrário a busca falhará.")
+    st.set_page_config(
+        page_title="Busca Jurisprudencial STJ (DataJud)",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    
+    st.title("⚖️ Busca Jurisprudencial DataJud (STJ)")
+    st.markdown("---")
 
-# Exemplos de termos/conceitos: dano moral, ICMS, overbooking, aborto, princípio da insignificância.
+    if API_KEY == "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==":
+        
+        termo = st.text_input("🔍 Insira o termo ou conceito para busca jurisprudencial:", 
+                              placeholder="Ex: dano moral, ICMS, overbooking",
+                              key="termo_busca")
+        
+        if st.button("🔎 Realizar Busca"):
+            if termo:
+                buscar_jurisprudencia_datajud(termo)
+            else:
+                st.warning("Nenhum termo inserido. Por favor, digite um termo para buscar.")
+    else:
+        st.warning("⚠️ Atenção: Verifique se sua chave de acesso (API_KEY) está correta, caso contrário a busca falhará.")
