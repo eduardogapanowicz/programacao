@@ -13,7 +13,7 @@ def buscar_jurisprudencia_datajud(termo_busca):
     Busca processos no DataJud (focado no STJ) e retorna um DataFrame do Pandas
     com os resultados formatados para exibição no Streamlit, incluindo correção de codificação.
     """
-    st.info(f"Buscando por '{termo_busca}' no STJ...")
+    st.info(f"Buscando por '{termo_busca}' na jurisprudência do STJ...")
     
     headers = {
         "Content-Type": "application/json",
