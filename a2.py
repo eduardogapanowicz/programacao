@@ -1,9 +1,9 @@
 import requests
 import json
 import os
-import pandas as pd
+import pandas as pd  
 from datetime import datetime  
-import streamlit as st
+import streamlit as st 
 
 DATAJUD_API_URL = "https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search" 
 API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=="
@@ -11,9 +11,9 @@ API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=="
 def buscar_jurisprudencia_datajud(termo_busca):
     """
     Busca processos no DataJud (focado no STJ) e retorna um DataFrame do Pandas
-    com os resultados formatados para exibição no Streamlit.
+    com os resultados formatados para exibição no Streamlit, incluindo correção de codificação.
     """
-    st.info(f"Buscando por '{termo_busca}' no STJ (Endpoint: STJ)...")
+    st.info(f"Buscando por '{termo_busca}' no STJ...")
     
     headers = {
         "Content-Type": "application/json",
@@ -35,13 +35,13 @@ def buscar_jurisprudencia_datajud(termo_busca):
                 ]
             }
         },
-        "size": 100,
-        "sort": [{"dataAjuizamento": "desc"}]
+        "size": 100, 
+        "sort": [{"dataAjuizamento": "desc"}] 
     }
     
     try:
         response = requests.post(DATAJUD_API_URL, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
+        response.raise_for_status() 
         
         dados = response.json()
         resultados = dados.get('hits', {}).get('hits', [])
@@ -64,15 +64,18 @@ def buscar_jurisprudencia_datajud(termo_busca):
             numero_processo = processo.get("numeroProcesso", "N/A")
             classe_processual = processo.get("classe", {}).get("nome", "N/A")
             data_ajuizamento_str = processo.get("dataAjuizamento", "N/A")
-           
+            
             orgao_julgado_raw = processo.get("orgaoJulgador", {}).get("nome", "N/A")
             orgao_julgado = "N/A"
+            
             if orgao_julgado_raw != "N/A":
                 try:
-                    orgao_julgado = orgao_julgado_raw.strip() 
+                    bytes_latin1 = orgao_julgado_raw.encode('latin1', 'ignore')
+                    orgao_julgado = bytes_latin1.decode('utf8', 'ignore').strip()
+                    
                 except Exception:
-                    orgao_julgado = orgao_julgado_raw 
-            
+                    orgao_julgado = orgao_julgado_raw.strip() 
+
             data_formatada = "N/A"
             if data_ajuizamento_str != "N/A":
                 try:
@@ -101,7 +104,6 @@ def buscar_jurisprudencia_datajud(termo_busca):
         ]
         
         df_resultados = pd.DataFrame(tabela_dados, columns=headers_tabela)
-        
         st.dataframe(df_resultados)
         
     except requests.exceptions.HTTPError as errh:
